@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ChartSliderPosition, PairHistory, Trade } from '@/types';
+import { breakpointsTailwind } from '@vueuse/core';
 
 const props = withDefaults(
   defineProps<{
@@ -43,8 +44,14 @@ const datasetColumns = computed(() =>
 
 const strategyName = computed(() => props.strategy || dataset.value?.strategy || '');
 
+// On small screens, secondary controls move into a drawer
+const isMobile = useBreakpoints(breakpointsTailwind).smallerOrEqual('md');
+const [DefineChartControls, ReuseChartControls] = createReusableTemplate();
+const showMobileControls = ref(false);
+
 const showPlotConfigModal = ref(false);
 function showConfigurator() {
+  showMobileControls.value = false;
   showPlotConfigModal.value = !showPlotConfigModal.value;
 }
 
@@ -142,8 +149,34 @@ const singlePairSelection = computed({
 <template>
   <div class="flex h-full">
     <div class="flex-fill w-full flex-col align-items-stretch flex h-full">
+      <DefineChartControls>
+        <BaseCheckbox v-model="settingsStore.multiPairSelection">
+          <span class="text-nowrap">Multi pair</span>
+        </BaseCheckbox>
+        <div class="ms-auto flex flex-wrap items-center gap-2">
+          <BaseCheckbox v-model="settingsStore.showMarkArea">
+            <span class="text-nowrap">Show Chart Areas</span>
+          </BaseCheckbox>
+          <BaseCheckbox v-model="settingsStore.useHeikinAshiCandles">
+            <span class="text-nowrap">Heikin Ashi</span>
+          </BaseCheckbox>
+
+          <div class="me-0 md:me-1 flex grow">
+            <PlotConfigSelect class="grow min-w-40"></PlotConfigSelect>
+
+            <UButton
+              title="Plot configurator"
+              color="neutral"
+              icon="mdi:cog"
+              @click="showConfigurator"
+            />
+          </div>
+        </div>
+      </DefineChartControls>
       <div class="flex me-0 items-center md:gap-2 gap-1 flex-wrap mx-1 md:mx-0">
-        <span class="md:ms-2 text-nowrap">{{ strategyName }} | {{ timeframe || '' }}</span>
+        <span v-if="!isMobile" class="md:ms-2 text-nowrap"
+          >{{ strategyName }} | {{ timeframe || '' }}</span
+        >
 
         <div class="flex gap-1 md:gap-2 w-full md:w-auto">
           <BaseStringMultiSelectMenu
@@ -171,29 +204,36 @@ const singlePairSelection = computed({
             icon="mdi:refresh"
             @click="refresh"
           />
+          <UDrawer
+            v-if="isMobile"
+            v-model:open="showMobileControls"
+            title="Chart settings"
+            :description="`${strategyName} | ${timeframe || ''}`"
+          >
+            <UButton title="Chart settings" color="neutral" icon="mdi:tune" />
+            <template #body>
+              <div class="flex flex-col gap-3">
+                <ReuseChartControls />
+                <USeparator />
+                <USwitch v-model="settingsStore.chartMobileExtras.legend" label="Show legend" />
+                <USwitch
+                  v-model="settingsStore.chartMobileExtras.slider"
+                  label="Show zoom slider"
+                />
+                <USwitch
+                  v-model="settingsStore.chartMobileExtras.tradeLabels"
+                  label="Show trade labels"
+                />
+                <small v-if="dataset" class="text-sm">
+                  Long entries: {{ dataset.enter_long_signals || dataset.buy_signals }} · Long
+                  exits:
+                  {{ dataset.exit_long_signals || dataset.sell_signals }}
+                </small>
+              </div>
+            </template>
+          </UDrawer>
         </div>
-        <BaseCheckbox v-model="settingsStore.multiPairSelection">
-          <span class="text-nowrap">Multi pair</span>
-        </BaseCheckbox>
-        <div class="ms-auto flex flex-wrap items-center gap-2">
-          <BaseCheckbox v-model="settingsStore.showMarkArea">
-            <span class="text-nowrap">Show Chart Areas</span>
-          </BaseCheckbox>
-          <BaseCheckbox v-model="settingsStore.useHeikinAshiCandles">
-            <span class="text-nowrap">Heikin Ashi</span>
-          </BaseCheckbox>
-
-          <div class="me-0 md:me-1 flex grow">
-            <PlotConfigSelect class="grow min-w-40"></PlotConfigSelect>
-
-            <UButton
-              title="Plot configurator"
-              color="neutral"
-              icon="mdi:cog"
-              @click="showConfigurator"
-            />
-          </div>
-        </div>
+        <ReuseChartControls v-if="!isMobile" />
       </div>
       <div
         v-if="botStore.activeBot.plotMultiPairs?.length > 0"

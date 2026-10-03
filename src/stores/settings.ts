@@ -41,6 +41,8 @@ export const useSettingsStore = defineStore(
     const chartLabelSide = ref<'left' | 'right'>('right');
     const chartDefaultCandleCount = ref(250);
     const chartMarkers = ref<ChartMarkerSettings>(structuredClone(chartMarkerDefaults));
+    // Chart elements hidden on small screens unless enabled
+    const chartMobileExtras = ref({ legend: false, slider: false, tradeLabels: false });
 
     const timeProfitPeriod = ref(TimeSummaryOptions.daily);
     const timeProfitPreference = ref(TimeSummaryCols.abs_profit);
@@ -83,6 +85,7 @@ export const useSettingsStore = defineStore(
       chartLabelSide,
       chartDefaultCandleCount,
       chartMarkers,
+      chartMobileExtras,
       timeProfitPeriod,
       timeProfitPreference,
       multiPaneButtonsShowText,

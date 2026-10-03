@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ChartSliderPosition, PairHistory, Trade } from '@/types';
+import { breakpointsTailwind } from '@vueuse/core';
 import { LoadingStatus } from '@/types';
 
 const props = withDefaults(
@@ -29,6 +30,7 @@ const settingsStore = useSettingsStore();
 const colorStore = useColorStore();
 const botStore = useBotStore();
 const plotStore = usePlotConfigStore();
+const isMobile = useBreakpoints(breakpointsTailwind).smallerOrEqual('md');
 
 const dataset = computed((): PairHistory | undefined => {
   if (props.historicView) {
@@ -131,7 +133,7 @@ watch(
   >
     <div class="flex me-0 w-full items-center justify-between">
       <div class="ms-1 md:ms-2 flex flex-wrap md:flex-nowrap items-center gap-1">
-        <div class="flex flex-col md:flex-row md:gap-2">
+        <div v-if="!isMobile" class="flex flex-col md:flex-row md:gap-2">
           <div class="flex flex-row flex-wrap gap-2">
             <small v-if="dataset" class="text-sm text-nowrap" title="Long entry signals"
               >Long entries: {{ dataset.enter_long_signals || dataset.buy_signals }}</small
@@ -150,7 +152,7 @@ watch(
           </div>
         </div>
       </div>
-      <div>
+      <div v-if="!(isMobile && isSinglePairView)">
         {{ pair || 'Pair' }}
       </div>
       <div class="w-4 h-4">
@@ -174,6 +176,11 @@ watch(
           :start-candle-count="settingsStore.chartDefaultCandleCount"
           :label-side="settingsStore.chartLabelSide"
           :markers="settingsStore.chartMarkers"
+          :key="`compact-${isMobile}`"
+          :compact="isMobile"
+          :show-legend="!isMobile || settingsStore.chartMobileExtras.legend"
+          :show-slider="!isMobile || settingsStore.chartMobileExtras.slider"
+          :show-trade-labels="!isMobile || settingsStore.chartMobileExtras.tradeLabels"
         />
         <div v-else class="m-auto">
           <UProgress v-if="isLoadingDataset" class="m-5 w-5 h-5" label="Spinning" />

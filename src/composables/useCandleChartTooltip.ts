@@ -252,5 +252,47 @@ export function useCandleChartTooltip(chartOptions: Ref<EChartsOption>) {
       ><span style="font-weight:700; text-decoration:underline;">${echartsFormat.encodeHTML(timestamp)}</span
       >${sections}</div>`;
   }
-  return { formatCandleTooltip };
+
+  /** Shorten numbers for the compact tooltip */
+  function formatCompactValue(value: string): string {
+    const lines = value.split('\n').map((line) => line.trim());
+    const num = lines.length === 1 ? Number(lines[0].replaceAll(',', '')) : NaN;
+    if (Number.isNaN(num) || lines[0] === '') {
+      return lines.join(' · ');
+    }
+    return num.toLocaleString(
+      undefined,
+      Math.abs(num) >= 1 ? { maximumFractionDigits: 4 } : { maximumSignificantDigits: 6 },
+    );
+  }
+
+  /** Compact candlechart tooltip formatter for small screens - values only, as flowing text */
+  function formatCandleTooltipCompact(params: TooltipComponentFormatterCallbackParams): string {
+    const tooltipParams: CandleTooltipParam[] = Array.isArray(params) ? params : [params];
+    if (tooltipParams.length === 0) {
+      return '';
+    }
+    const timestamp =
+      tooltipParams[0].axisValueLabel ??
+      (typeof tooltipParams[0].axisValue === 'number'
+        ? timestampms(tooltipParams[0].axisValue)
+        : (tooltipParams[0].axisValue?.toString() ?? ''));
+
+    const parts: string[] = [`<b>${echartsFormat.encodeHTML(timestamp)}</b>`];
+    for (const param of tooltipParams) {
+      const isCandle = param.seriesType === 'candlestick';
+      for (const row of formatTooltipLine(param)) {
+        if (!row.value) {
+          continue;
+        }
+        // Candles show as O / H / L / C
+        const label = isCandle ? row.label.charAt(0).toUpperCase() : row.label;
+        parts.push(
+          `<span>${isCandle ? '' : (row.marker ?? '')}${echartsFormat.encodeHTML(label)} <b>${echartsFormat.encodeHTML(formatCompactValue(row.value))}</b></span>`,
+        );
+      }
+    }
+    return `<div style="font-size:11px;line-height:1.35;text-align:start;white-space:normal;">${parts.join(' &nbsp;')}</div>`;
+  }
+  return { formatCandleTooltip, formatCandleTooltipCompact };
 }
