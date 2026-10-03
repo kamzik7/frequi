@@ -32,6 +32,8 @@ export const useSettingsStore = defineStore(
     const confirmDialog = ref(true);
     const chartLabelSide = ref<'left' | 'right'>('right');
     const chartDefaultCandleCount = ref(250);
+    // Chart elements hidden on small screens unless enabled
+    const chartMobileExtras = ref({ legend: false, slider: false, tradeLabels: false });
 
     const timeProfitPeriod = ref(TimeSummaryOptions.daily);
     const timeProfitPreference = ref(TimeSummaryCols.abs_profit);
@@ -73,6 +75,7 @@ export const useSettingsStore = defineStore(
       confirmDialog,
       chartLabelSide,
       chartDefaultCandleCount,
+      chartMobileExtras,
       timeProfitPeriod,
       timeProfitPreference,
       multiPaneButtonsShowText,

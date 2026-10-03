@@ -65,12 +65,17 @@ const props = defineProps<{
   colorDown: string;
   labelSide: 'left' | 'right';
   startCandleCount: number;
+  /** Small screen layout: no margins, tooltip as readout on tap */
+  compact: boolean;
+  showLegend: boolean;
+  showSlider: boolean;
+  showTradeLabels: boolean;
 }>();
 
 const isLabelLeft = computed(() => props.labelSide === 'left');
 // Chart default options
-const MARGINLEFT = isLabelLeft.value ? '5.5%' : '1%';
-const MARGINRIGHT = isLabelLeft.value ? '1%' : '5.5%';
+const MARGINLEFT = props.compact ? '0%' : isLabelLeft.value ? '5.5%' : '1%';
+const MARGINRIGHT = props.compact ? '0%' : isLabelLeft.value ? '1%' : '5.5%';
 const NAMEGAP = 55;
 const SUBPLOTHEIGHT = 8; // Value in %
 // minimal helpers for debugging
@@ -125,7 +130,7 @@ usePercentageTool(
   toRef(() => props.dataset.timeframe_ms),
 );
 
-const { formatCandleTooltip } = useCandleChartTooltip(chartOptions);
+const { formatCandleTooltip, formatCandleTooltipCompact } = useCandleChartTooltip(chartOptions);
 
 function addLegend(name: string, position: number | undefined = undefined) {
   if (
@@ -172,8 +177,10 @@ function updateChart(initial = false) {
   const colShortEntryData = columns.findIndex((el) => el === '_enter_short_signal_close');
   const colShortExitData = columns.findIndex((el) => el === '_exit_short_signal_close');
 
+  // Without the zoom slider, all grids move down by one row
   const subplotCount =
-    'subplots' in props.plotConfig ? Object.keys(props.plotConfig.subplots).length + 1 : 1;
+    ('subplots' in props.plotConfig ? Object.keys(props.plotConfig.subplots).length + 1 : 1) -
+    (props.showSlider ? 0 : 1);
 
   if (Array.isArray(chartOptions.value?.dataZoom)) {
     // Only set zoom once ...
@@ -222,6 +229,9 @@ function updateChart(initial = false) {
       {
         left: MARGINLEFT,
         right: MARGINRIGHT,
+        top: props.showLegend ? 60 : 25,
+        // Compact: use the full width, labels are inside the grid
+        outerBoundsMode: props.compact ? 'none' : undefined,
         // Grid Layout from bottom to top
         bottom: `${subplotCount * SUBPLOTHEIGHT + 2}%`,
       },
@@ -272,13 +282,18 @@ function updateChart(initial = false) {
         type: 'time',
         axisLine: { onZero: false },
         axisTick: { show: true },
-        axisLabel: { show: true },
+        axisLabel: {
+          show: true,
+          hideOverlap: true,
+          alignMinLabel: props.compact ? 'left' : undefined,
+          alignMaxLabel: props.compact ? 'right' : undefined,
+        },
         axisPointer: {
           label: { show: false },
         },
         position: 'top',
         splitLine: { show: false },
-        splitNumber: 20,
+        splitNumber: props.compact ? 5 : 20,
         min: 'dataMin',
         max: 'dataMax',
       },
@@ -306,13 +321,14 @@ function updateChart(initial = false) {
         min: (value) => {
           return formatDecimal(value.min - (value.max - value.min) * 0.04, 'en-EN');
         },
-        name: ' ', // Necessary to avoid layout shift
+        name: props.compact ? '' : ' ', // Necessary to avoid layout shift
         nameLocation: 'middle',
         nameGap: NAMEGAP,
         axisLine: { show: showAxisLine },
         axisLabel: {
           hideOverlap: true,
           overflow: 'truncate',
+          inside: props.compact,
         },
         position: props.labelSide,
       },
@@ -320,7 +336,7 @@ function updateChart(initial = false) {
         scale: true,
         gridIndex: 1,
         splitNumber: 2,
-        name: 'volume',
+        name: props.compact ? '' : 'volume',
         nameLocation: 'middle',
         position: props.labelSide,
         nameGap: NAMEGAP,
@@ -472,7 +488,7 @@ function updateChart(initial = false) {
         options.yAxis.push({
           scale: true,
           gridIndex: currGridIdx,
-          name: key,
+          name: props.compact ? '' : key,
           position: props.labelSide,
           nameLocation: 'middle',
           nameGap: NAMEGAP,
@@ -480,6 +496,7 @@ function updateChart(initial = false) {
             show: true,
             hideOverlap: true,
             overflow: 'truncate',
+            inside: props.compact,
           },
           axisLine: { show: showAxisLine },
           axisTick: { show: false },
@@ -561,7 +578,7 @@ function updateChart(initial = false) {
   if (Array.isArray(options.grid)) {
     // Last subplot is bottom
     const localGrid = options.grid[options.grid.length - 1];
-    if (localGrid) {
+    if (localGrid && props.showSlider) {
       // Last subplot is bottom
       localGrid.bottom = '50px';
       delete localGrid.top;
@@ -577,6 +594,7 @@ function updateChart(initial = false) {
     props.dataset,
     filteredTrades.value,
   );
+  tradesSeries.label = { ...tradesSeries.label, show: props.showTradeLabels };
   if (Array.isArray(options.series)) {
     options.series.push(tradesSeries);
   }
@@ -606,6 +624,7 @@ function initializeChartOptions() {
     animation: false,
     legend: {
       // Initial legend, further entries are pushed to the below list
+      show: props.showLegend,
       data: ['Candles', 'Volume', 'Entry', 'Exit'],
       right: '1%',
       top: 0,
@@ -620,8 +639,12 @@ function initializeChartOptions() {
       show: true,
       trigger: 'axis',
       renderMode: 'html',
-      formatter: formatCandleTooltip,
-      backgroundColor: 'rgba(80,80,80,0.7)',
+      formatter: props.compact ? formatCandleTooltipCompact : formatCandleTooltip,
+      // Compact: readout across the top of the chart, on tap only
+      triggerOn: props.compact ? 'click' : undefined,
+      padding: props.compact ? [2, 4] : 5,
+      extraCssText: props.compact ? 'width:100%;box-sizing:border-box;border-radius:0;' : '',
+      backgroundColor: props.compact ? 'rgba(60,60,60,0.95)' : 'rgba(80,80,80,0.7)',
       borderWidth: 0,
       textStyle: {
         color: '#fff',
@@ -635,16 +658,19 @@ function initializeChartOptions() {
         },
       },
       // positioning copied from https://echarts.apache.org/en/option.html#tooltip.position
-      position(pos, params, dom, rect, size) {
-        // tooltip will be fixed on the right if mouse hovering on the left,
-        // and on the left if hovering on the right.
-        const obj = { top: 60 };
-        const mouseIsLeft = pos[0] < size.viewSize[0] / 2;
-        obj[['left', 'right'][+mouseIsLeft]!] = mouseIsLeft ? MARGINRIGHT : MARGINLEFT;
-        return obj;
-      },
+      position: props.compact
+        ? [0, 0]
+        : (pos, params, dom, rect, size) => {
+            // tooltip will be fixed on the right if mouse hovering on the left,
+            // and on the left if hovering on the right.
+            const obj = { top: 60 };
+            const mouseIsLeft = pos[0] < size.viewSize[0] / 2;
+            obj[['left', 'right'][+mouseIsLeft]!] = mouseIsLeft ? MARGINRIGHT : MARGINLEFT;
+            return obj;
+          },
     },
     axisPointer: {
+      triggerOn: props.compact ? 'click' : undefined,
       link: [{ xAxisIndex: 'all' }],
       label: {
         backgroundColor: '#777',
@@ -665,6 +691,7 @@ function initializeChartOptions() {
         start: 80,
         end: 100,
         ...dataZoomPartial,
+        show: props.showSlider,
       },
     ],
     // visualMap: {
@@ -688,6 +715,14 @@ function initializeChartOptions() {
 
   console.log('Initialized');
   updateChart(true);
+}
+
+function onDataZoom() {
+  // The compact readout is shown on tap - hide it again once the chart moves
+  if (props.compact) {
+    candleChart.value?.dispatchAction({ type: 'hideTip' });
+    candleChart.value?.dispatchAction({ type: 'updateAxisPointer', currTrigger: 'leave' });
+  }
 }
 
 function updateSliderPosition() {
@@ -729,8 +764,16 @@ onMounted(() => {
   initializeChartOptions();
 });
 
-watch([() => props.useUTC, () => props.theme, () => props.plotConfig], () =>
-  initializeChartOptions(),
+watch(
+  [
+    () => props.useUTC,
+    () => props.theme,
+    () => props.plotConfig,
+    () => props.showLegend,
+    () => props.showSlider,
+    () => props.showTradeLabels,
+  ],
+  () => initializeChartOptions(),
 );
 
 watch([() => props.dataset, () => props.heikinAshi, () => props.showMarkArea], () => updateChart());
@@ -743,7 +786,14 @@ watch(
 
 <template>
   <div class="h-full w-full">
-    <ECharts v-if="hasData" ref="candleChart" :theme="theme" autoresize manual-update />
+    <ECharts
+      v-if="hasData"
+      ref="candleChart"
+      :theme="theme"
+      autoresize
+      manual-update
+      @datazoom="onDataZoom"
+    />
   </div>
 </template>
 
