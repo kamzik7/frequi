@@ -432,8 +432,12 @@ function updateChart(initial = false) {
           symbolRotate: signal.symbolRotate ?? 0,
           xAxisIndex: 0,
           yAxisIndex: 0,
+          // Draw markers in front of candles and indicators
+          z: 5,
           itemStyle: {
             color: signal.color,
+            borderColor: '#000',
+            borderWidth: 1,
           },
           tooltip: {
             valueFormatter: (value) => {

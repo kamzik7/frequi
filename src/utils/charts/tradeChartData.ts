@@ -193,6 +193,8 @@ export function generateTradeSeries(
   const tradesSeries: ScatterSeriesOption = {
     name: nameTrades,
     type: 'scatter',
+    // Draw trades in front of candles, indicators and signals
+    z: 6,
     xAxisIndex: 0,
     yAxisIndex: 0,
     encode: {
@@ -215,6 +217,8 @@ export function generateTradeSeries(
       // color: tradeSellColor,
       color: (v) => (v.data ? v.data[4] : '#000'),
       opacity: 0.9,
+      borderColor: '#000',
+      borderWidth: 1,
     },
     symbol: (v) => v[2],
     symbolRotate: (v) => v[3],
