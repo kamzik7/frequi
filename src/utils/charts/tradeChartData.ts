@@ -1,4 +1,11 @@
-import type { Order, PairHistory, Trade, BTOrder } from '@/types';
+import type {
+  Order,
+  PairHistory,
+  Trade,
+  BTOrder,
+  ChartMarkerSettings,
+  ChartMarkerStyle,
+} from '@/types';
 
 import type {
   MarkAreaComponentOption,
@@ -55,9 +62,28 @@ const SHORT_COLOR = '#AD00FF';
 //const SHORT_ADJUST_COLOR = '#CE3BFF';
 const LONG_COLOR = '#0066FF';
 //const LONG_ADJUST_COLOR = '#00A9FF';
+const ADJUSTMENT_SYMBOL_SIZE = 13;
+
+/** Resolve the symbol of a marker, falling back to the built-in symbol */
+export function chartMarkerSymbol(marker: ChartMarkerStyle, defaultSymbol: string): string {
+  return marker.symbol === 'default' ? defaultSymbol : marker.symbol;
+}
+
+/**
+ * Scale factor for marker sizes, so markers grow when zooming in.
+ * 1 at the default zoom level, limited to 0.5 - 4.
+ */
+export function chartMarkerZoomScale(defaultCandleCount: number, visibleCandleCount: number) {
+  if (visibleCandleCount <= 0) {
+    return 1;
+  }
+  const scale = Math.min(Math.max(defaultCandleCount / visibleCandleCount, 0.5), 4);
+  // Round to limit chart updates while zooming
+  return Math.round(scale * 10) / 10;
+}
 
 /** Return trade entries for charting */
-function getTradeEntries(dataset: PairHistory, trades: Trade[]) {
+function getTradeEntries(dataset: PairHistory, trades: Trade[], markers: ChartMarkerSettings) {
   const tradeData: (number | string)[][] = [];
   // Return schema:
   // 0: Timeframe
@@ -67,6 +93,7 @@ function getTradeEntries(dataset: PairHistory, trades: Trade[]) {
   // 4: color
   // 5: label
   // 6: tooltip
+  // 7: symbol size
   const stop_ts_adjusted = dataset.data_stop_ts + dataset.timeframe_ms;
   for (const trade of trades) {
     // const trade: Trade = trades[i];
@@ -93,12 +120,13 @@ function getTradeEntries(dataset: PairHistory, trades: Trade[]) {
               tradeData.push([
                 roundTimeframe(dataset.timeframe_ms ?? 0, openTs),
                 order.safe_price,
-                OPEN_CLOSE_SYMBOL,
+                chartMarkerSymbol(markers.tradeEntry, OPEN_CLOSE_SYMBOL),
                 order.ft_order_side == 'sell' ? 180 : 0,
-                trade.is_short ? SHORT_COLOR : LONG_COLOR,
+                markers.tradeEntry.color || (trade.is_short ? SHORT_COLOR : LONG_COLOR),
                 (trade.is_short ? 'Short' : 'Long') +
                   (!order.order_filled_timestamp ? ' (open)' : ''),
                 buildToolTip(trade, order, 'entry', quoteCurrency),
+                markers.tradeEntry.size,
               ]);
               // Trade exit
             } else if (j === trade.orders.length - 1 && trade.close_timestamp) {
@@ -111,11 +139,12 @@ function getTradeEntries(dataset: PairHistory, trades: Trade[]) {
                 tradeData.push([
                   roundTimeframe(dataset.timeframe_ms ?? 0, trade.close_timestamp),
                   order.safe_price,
-                  OPEN_CLOSE_SYMBOL,
+                  chartMarkerSymbol(markers.tradeExit, OPEN_CLOSE_SYMBOL),
                   trade.is_short ? 0 : 180,
-                  trade.is_short ? SHORT_COLOR : LONG_COLOR,
+                  markers.tradeExit.color || (trade.is_short ? SHORT_COLOR : LONG_COLOR),
                   formatPercent(trade.profit_ratio, 2),
                   buildToolTip(trade, order, 'exit', quoteCurrency),
+                  markers.tradeExit.size,
                 ]);
               }
             }
@@ -134,6 +163,7 @@ function getTradeEntries(dataset: PairHistory, trades: Trade[]) {
                   trade.is_short ? SHORT_COLOR : LONG_COLOR,
                   '',
                   buildAdjustmentToolTip(trade, order, quoteCurrency),
+                  ADJUSTMENT_SYMBOL_SIZE,
                 ]);
               }
             }
@@ -154,8 +184,9 @@ export function generateTradeSeries(
   theme: string,
   dataset: PairHistory,
   trades: Trade[],
+  markers: ChartMarkerSettings,
 ): ScatterSeriesOption {
-  const { tradeData } = getTradeEntries(dataset, trades);
+  const { tradeData } = getTradeEntries(dataset, trades, markers);
 
   const openTrade = trades.find((t) => t.is_open);
 
@@ -187,7 +218,7 @@ export function generateTradeSeries(
     },
     symbol: (v) => v[2],
     symbolRotate: (v) => v[3],
-    symbolSize: 13,
+    symbolSize: (v) => v[7],
     data: tradeData,
   };
   // Show distance to stoploss

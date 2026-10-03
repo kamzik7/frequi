@@ -16,6 +16,27 @@ const colorPreferenceOptions = [
   { value: ColorPreferences.RED_UP, text: 'Red Up/Green Down' },
 ];
 
+const markerSymbolOptions = [
+  { value: 'default', text: 'Default' },
+  { value: 'circle', text: 'Circle' },
+  { value: 'rect', text: 'Rectangle' },
+  { value: 'roundRect', text: 'Rounded rectangle' },
+  { value: 'triangle', text: 'Triangle' },
+  { value: 'diamond', text: 'Diamond' },
+  { value: 'pin', text: 'Pin' },
+  { value: 'arrow', text: 'Arrow' },
+];
+const markerOptions = [
+  { key: 'signalEntry', text: 'Entry signal' },
+  { key: 'signalExit', text: 'Exit signal' },
+  { key: 'tradeEntry', text: 'Trade entry' },
+  { key: 'tradeExit', text: 'Trade exit' },
+] as const;
+
+const resetChartMarkers = () => {
+  settingsStore.chartMarkers = structuredClone(chartMarkerDefaults);
+};
+
 const resetDynamicLayout = () => {
   layoutStore.resetTradingLayout();
   layoutStore.resetDashboardLayout();
@@ -144,6 +165,72 @@ const resetDynamicLayout = () => {
               :max="2000"
               size="sm"
             />
+          </div>
+        </div>
+
+        <div class="space-y-1">
+          <label class="block">Chart markers</label>
+          <div
+            v-for="marker in markerOptions"
+            :key="marker.key"
+            class="flex flex-col lg:flex-row gap-2"
+          >
+            <UFormField :label="`${marker.text} symbol`" class="w-full">
+              <USelect
+                v-model="settingsStore.chartMarkers[marker.key].symbol"
+                :items="markerSymbolOptions"
+                label-key="text"
+                value-key="value"
+                class="w-full"
+              />
+            </UFormField>
+            <UFormField label="Size" class="w-full">
+              <UInputNumber
+                v-model="settingsStore.chartMarkers[marker.key].size"
+                :step="1"
+                :min="4"
+                :max="50"
+                class="w-full"
+              />
+            </UFormField>
+            <UFormField label="Color" class="w-full">
+              <UFieldGroup class="w-full">
+                <UPopover placement="bottom" :close-on-click="false">
+                  <UButton
+                    class="h-8 w-8"
+                    :style="{ backgroundColor: settingsStore.chartMarkers[marker.key].color }"
+                  ></UButton>
+                  <template #content>
+                    <UColorPicker
+                      v-model="settingsStore.chartMarkers[marker.key].color"
+                      class="m-auto"
+                    ></UColorPicker>
+                  </template>
+                </UPopover>
+                <UInput
+                  v-model="settingsStore.chartMarkers[marker.key].color"
+                  placeholder="Default"
+                  class="grow"
+                >
+                </UInput>
+              </UFieldGroup>
+            </UFormField>
+          </div>
+          <BaseCheckbox v-model="settingsStore.chartMarkers.scaleWithZoom" class="space-y-1">
+            Scale markers with zoom
+            <template #hint
+              >Markers have the configured size at the default zoom level and grow when zooming
+              in.</template
+            >
+          </BaseCheckbox>
+          <div class="flex flex-row items-center gap-2">
+            <UButton color="neutral" size="md" class="shrink-0" @click="resetChartMarkers"
+              >Reset markers</UButton
+            >
+            <small class="text-sm block text-neutral-600 dark:text-neutral-400"
+              >Symbol, size and color of the entry / exit markers in the candle chart. An empty
+              color uses the default color (which differs between long and short trades).</small
+            >
           </div>
         </div>
 

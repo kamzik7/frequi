@@ -1,6 +1,6 @@
 import { ofetch } from 'ofetch';
 import { TimeSummaryCols, TimeSummaryOptions } from '@/types';
-import type { ThemeName, UiVersion } from '@/types';
+import type { ChartMarkerSettings, ThemeName, UiVersion } from '@/types';
 import { FtWsMessageTypes } from '@/types/wsMessageTypes';
 
 export enum OpenTradeVizOptions {
@@ -14,6 +14,14 @@ const notificationDefaults = {
   [FtWsMessageTypes.exitFill]: true,
   [FtWsMessageTypes.entryCancel]: true,
   [FtWsMessageTypes.exitCancel]: true,
+};
+
+export const chartMarkerDefaults: ChartMarkerSettings = {
+  signalEntry: { symbol: 'default', size: 10, color: '#00ff26' },
+  signalExit: { symbol: 'default', size: 8, color: '#faba25' },
+  tradeEntry: { symbol: 'default', size: 13, color: '' },
+  tradeExit: { symbol: 'default', size: 13, color: '' },
+  scaleWithZoom: false,
 };
 
 export const useSettingsStore = defineStore(
@@ -32,6 +40,7 @@ export const useSettingsStore = defineStore(
     const confirmDialog = ref(true);
     const chartLabelSide = ref<'left' | 'right'>('right');
     const chartDefaultCandleCount = ref(250);
+    const chartMarkers = ref<ChartMarkerSettings>(structuredClone(chartMarkerDefaults));
 
     const timeProfitPeriod = ref(TimeSummaryOptions.daily);
     const timeProfitPreference = ref(TimeSummaryCols.abs_profit);
@@ -73,6 +82,7 @@ export const useSettingsStore = defineStore(
       confirmDialog,
       chartLabelSide,
       chartDefaultCandleCount,
+      chartMarkers,
       timeProfitPeriod,
       timeProfitPreference,
       multiPaneButtonsShowText,

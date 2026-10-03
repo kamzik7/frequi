@@ -1,10 +1,17 @@
 <script setup lang="ts">
-import type { ChartSliderPosition, IndicatorConfig, PairHistory, PlotConfig, Trade } from '@/types';
+import type {
+  ChartMarkerSettings,
+  ChartSliderPosition,
+  IndicatorConfig,
+  PairHistory,
+  PlotConfig,
+  Trade,
+} from '@/types';
 import { ChartType } from '@/types';
 
 import ECharts from 'vue-echarts';
 
-import type { EChartsOption, ScatterSeriesOption } from 'echarts';
+import type { EChartsOption, Payload, ScatterSeriesOption } from 'echarts';
 import { BarChart, CandlestickChart, LineChart, ScatterChart } from 'echarts/charts';
 import {
   AxisPointerComponent,
@@ -65,6 +72,7 @@ const props = defineProps<{
   colorDown: string;
   labelSide: 'left' | 'right';
   startCandleCount: number;
+  markers: ChartMarkerSettings;
 }>();
 
 const isLabelLeft = computed(() => props.labelSide === 'left');
@@ -87,6 +95,18 @@ const buySignalColor = '#00ff26';
 const shortEntrySignalColor = '#00ff26';
 const sellSignalColor = '#faba25';
 const shortexitSignalColor = '#faba25';
+
+// Marker scaling on zoom
+const TRADES_SERIES_ID = 'trades';
+let markerScale = 1;
+const signalMarkerSizes = new Map<string, number>();
+
+interface DataZoomRange {
+  start?: number;
+  end?: number;
+  startValue?: number;
+  endValue?: number;
+}
 
 const candleChart = useTemplateRef<InstanceType<typeof ECharts>>('candleChart');
 const chartOptions = shallowRef<EChartsOption>({});
@@ -346,49 +366,53 @@ function updateChart(initial = false) {
       {
         colData: colEntryData,
         name: 'Entry',
-        symbol: 'triangle',
-        symbolSize: 10,
-        color: buySignalColor,
+        symbol: chartMarkerSymbol(props.markers.signalEntry, 'triangle'),
+        symbolSize: props.markers.signalEntry.size,
+        color: props.markers.signalEntry.color || buySignalColor,
         tooltipPrefix: 'Long entry',
         colTooltip: colEnterTag,
       },
       {
         colData: colExitData,
         name: 'Exit',
-        symbol: 'diamond',
-        symbolSize: 8,
-        color: sellSignalColor,
+        symbol: chartMarkerSymbol(props.markers.signalExit, 'diamond'),
+        symbolSize: props.markers.signalExit.size,
+        color: props.markers.signalExit.color || sellSignalColor,
         tooltipPrefix: 'Long exit',
         colTooltip: colExitTag,
       },
       {
         colData: colShortEntryData,
         name: 'Entry',
-        symbol: 'triangle',
-        symbolSize: 10,
+        symbol: chartMarkerSymbol(props.markers.signalEntry, 'triangle'),
+        symbolSize: props.markers.signalEntry.size,
         symbolRotate: 180,
-        color: shortEntrySignalColor,
+        color: props.markers.signalEntry.color || shortEntrySignalColor,
         tooltipPrefix: 'Short entry',
         colTooltip: colEnterTag,
       },
       {
         colData: colShortExitData,
         name: 'Exit',
-        symbol: 'pin',
-        symbolSize: 8,
-        color: shortexitSignalColor,
+        symbol: chartMarkerSymbol(props.markers.signalExit, 'pin'),
+        symbolSize: props.markers.signalExit.size,
+        color: props.markers.signalExit.color || shortexitSignalColor,
         tooltipPrefix: 'Short exit',
         colTooltip: colExitTag,
       },
     ];
 
+    signalMarkerSizes.clear();
     for (const signal of signalConfigs) {
       if (signal.colData >= 0) {
+        const id = `signal-${signal.tooltipPrefix}`;
+        signalMarkerSizes.set(id, signal.symbolSize);
         options.series.push({
+          id,
           name: signal.name,
           type: 'scatter',
           symbol: signal.symbol,
-          symbolSize: signal.symbolSize,
+          symbolSize: signal.symbolSize * markerScale,
           symbolRotate: signal.symbolRotate ?? 0,
           xAxisIndex: 0,
           yAxisIndex: 0,
@@ -576,7 +600,10 @@ function updateChart(initial = false) {
     props.theme,
     props.dataset,
     filteredTrades.value,
+    props.markers,
   );
+  tradesSeries.id = TRADES_SERIES_ID;
+  tradesSeries.symbolSize = tradeMarkerSize(markerScale);
   if (Array.isArray(options.series)) {
     options.series.push(tradesSeries);
   }
@@ -593,6 +620,8 @@ function updateChart(initial = false) {
 function initializeChartOptions() {
   // Ensure we start empty.
   candleChart.value?.setOption({}, { notMerge: true });
+  // Zoom is reset, so is the marker scale
+  markerScale = 1;
 
   chartOptions.value = {
     title: [
@@ -690,6 +719,35 @@ function initializeChartOptions() {
   updateChart(true);
 }
 
+function tradeMarkerSize(scale: number) {
+  return (v: number[]) => (v[7] ?? 0) * scale;
+}
+
+function onDataZoom(params: Payload) {
+  if (!props.markers.scaleWithZoom) return;
+  // "inside" zoom (mouse wheel) reports in batch, the slider reports directly
+  const zoom = (params.batch?.[0] ?? params) as DataZoomRange;
+  let visibleCandles: number;
+  if (zoom.startValue !== undefined && zoom.endValue !== undefined) {
+    visibleCandles = (zoom.endValue - zoom.startValue) / props.dataset.timeframe_ms;
+  } else if (zoom.start !== undefined && zoom.end !== undefined) {
+    visibleCandles = ((zoom.end - zoom.start) / 100) * props.dataset.length;
+  } else {
+    return;
+  }
+  const scale = chartMarkerZoomScale(
+    Math.min(props.startCandleCount, props.dataset.length),
+    visibleCandles,
+  );
+  if (scale === markerScale) return;
+  markerScale = scale;
+  const series: ScatterSeriesOption[] = [
+    ...Array.from(signalMarkerSizes, ([id, size]) => ({ id, symbolSize: size * scale })),
+    { id: TRADES_SERIES_ID, symbolSize: tradeMarkerSize(scale) },
+  ];
+  candleChart.value?.setOption({ series });
+}
+
 function updateSliderPosition() {
   if (!props.sliderPosition) return;
 
@@ -743,7 +801,14 @@ watch(
 
 <template>
   <div class="h-full w-full">
-    <ECharts v-if="hasData" ref="candleChart" :theme="theme" autoresize manual-update />
+    <ECharts
+      v-if="hasData"
+      ref="candleChart"
+      :theme="theme"
+      autoresize
+      manual-update
+      @datazoom="onDataZoom"
+    />
   </div>
 </template>
 
