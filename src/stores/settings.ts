@@ -17,11 +17,11 @@ const notificationDefaults = {
 };
 
 export const chartMarkerDefaults: ChartMarkerSettings = {
-  signalEntry: { symbol: 'default', size: 10, color: '#00ff26' },
-  signalExit: { symbol: 'default', size: 8, color: '#faba25' },
-  tradeEntry: { symbol: 'default', size: 13, color: '' },
-  tradeExit: { symbol: 'default', size: 13, color: '' },
-  scaleWithZoom: false,
+  signalEntry: { symbol: 'default', size: 16, color: '#00ff26' },
+  signalExit: { symbol: 'default', size: 14, color: '#faba25' },
+  tradeEntry: { symbol: 'default', size: 22, color: '' },
+  tradeExit: { symbol: 'default', size: 22, color: '' },
+  scaleWithZoom: true,
 };
 
 export const useSettingsStore = defineStore(
